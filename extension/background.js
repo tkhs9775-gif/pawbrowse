@@ -25,18 +25,25 @@ async function getPort() {
 async function connect() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   const port = await getPort();
-  try {
-    ws = new WebSocket(`ws://127.0.0.1:${port}`);
-  } catch { scheduleReconnect(); return; }
+  // Re-check after the await: a concurrent connect() (keepalive alarm, reconnect timer)
+  // may have already started a socket while we were waiting on storage.
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
-  ws.onopen = () => {
-    ws.send(JSON.stringify({ type: 'hello', ext: chrome.runtime.id }));
+  let socket;
+  try {
+    socket = new WebSocket(`ws://127.0.0.1:${port}`);
+  } catch { scheduleReconnect(); return; }
+  ws = socket;
+
+  // Handlers close over `socket`, not the shared `ws`, so a later connect() reassigning
+  // `ws` can never make this socket's onopen send through a different, still-connecting one.
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ type: 'hello', ext: chrome.runtime.id }));
     setBadge('on');
   };
-  ws.onmessage = (ev) => {
+  socket.onmessage = (ev) => {
     let msg; try { msg = JSON.parse(ev.data); } catch { return; }
     if (!msg.cmd) return;
-    const sock = ws;
     // Run one command at a time; overlapping calls queue instead of racing the shared debugger.
     // Each command is bounded so a single hang can never wedge the whole queue — the chain
     // always advances (the underlying work may leak, but subsequent commands still run).
@@ -46,14 +53,14 @@ async function connect() {
           handleCommand(msg.cmd, msg.args || {}),
           new Promise((_, rej) => setTimeout(() => rej(new Error('command timed out in extension after 25s')), 25000)),
         ]);
-        sock.send(JSON.stringify({ id: msg.id, ok: true, result }));
+        socket.send(JSON.stringify({ id: msg.id, ok: true, result }));
       } catch (e) {
-        try { sock.send(JSON.stringify({ id: msg.id, ok: false, error: String(e && e.message || e) })); } catch {}
+        try { socket.send(JSON.stringify({ id: msg.id, ok: false, error: String(e && e.message || e) })); } catch {}
       }
     });
   };
-  ws.onclose = () => { setBadge('off'); scheduleReconnect(); };
-  ws.onerror = () => { try { ws.close(); } catch {} };
+  socket.onclose = () => { setBadge('off'); scheduleReconnect(); };
+  socket.onerror = () => { try { socket.close(); } catch {} };
 }
 
 function scheduleReconnect() {
