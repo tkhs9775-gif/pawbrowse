@@ -1,0 +1,58 @@
+# Cafe Coding prompt for Starship (https://starship.rs)
+# Install: copy to ~/.config/starship.toml, then add to your shell rc:
+#   eval "$(starship init zsh)"    # or bash / fish
+
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = true
+palette = "cafe"
+
+# ~/dev/scheduler  main ±  node 22   (then a new line with the $ mark)
+format = """
+$directory$git_branch$git_status$nodejs$cmd_duration
+$character"""
+
+[palettes.cafe]
+accent = "#6EE7B7"
+text   = "#F4F2EE"
+dim    = "#6B7280"
+warn   = "#F2C078"
+error  = "#FF7A90"
+
+[directory]
+style = "dim"
+truncation_length = 3
+truncate_to_repo = true
+format = "[$path]($style) "
+
+[git_branch]
+symbol = ""
+style = "dim"
+format = "[$branch]($style) "
+
+[git_status]
+style = "warn"
+format = "[$all_status$ahead_behind]($style) "
+modified = "±"
+staged = "+"
+untracked = "?"
+ahead = "↑"
+behind = "↓"
+diverged = "↕"
+conflicted = "!"
+
+[nodejs]
+symbol = ""
+style = "dim"
+format = "[node $version]($style) "
+detect_extensions = []
+detect_files = ["package.json", ".node-version"]
+
+[cmd_duration]
+min_time = 2000
+style = "dim"
+format = "[$duration]($style)"
+
+[character]
+success_symbol = "[\\$](bold accent)"
+error_symbol = "[\\$](bold error)"
